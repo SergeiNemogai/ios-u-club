@@ -82,6 +82,7 @@ insert Into Customer (last_name,first_name,telephone_number,mail,discount) value
 insert into Orders (customer_id,order_cost,order_date,status) values(3,3000.354,'29-september-2019','y');
 insert into Orders (customer_id,order_cost,order_date,status) values(4,2000,'30-september-2019','y');
 insert into Orders (customer_id,order_cost,order_date,status) values(2,2000,'1-october-2019','y');
+insert into Orders (customer_id,order_cost,order_date,status) values(1,3000.199,'19-november-2019','y');
 
 -- iserting into Material
 insert into Material (material_type,manufacturer,price) values('Offset paper','Lumiset',1000);
@@ -112,8 +113,6 @@ insert into Product (title,price,production_time,circulation,equipment_id,materi
 insert into Order_information values(1,1);
 insert into Order_information values(2,2);
 insert into Order_information values(3,2);
-
-
 
 
 

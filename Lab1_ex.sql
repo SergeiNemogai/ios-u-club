@@ -18,6 +18,7 @@ CREATE TABLE Staff (
 	adress VARCHAR2(20) NOT NULL,
 	tel_no VARCHAR2(15) NOT NULL UNIQUE,
 	position VARCHAR2(20) NOT NULL,
+	-- dobavit vmesto char varchar
 	sex CHAR(6) CHECK (sex IN ('male','female')),
 	dob DATE NOT NULL,
 	salary INTEGER NOT NULL,
