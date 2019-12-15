@@ -162,22 +162,137 @@ END;
 -- мутации, что приведет к совмещению данного пункта лабораторной работы со
 -- следующим. Третий пункт задания предполагает использование планировщика
 -- задач, который обязательно должен быть настроен на многократный запуск с
--- использованием частоты, интервала и спецификаторов
-
--- Определенный материал подходит для определенной техники.
-
--- Клиентам, у которых больше 5 заказов, предоставляется скидка.
-
--- Клиент одновременно не может иметь более 3 заказов.
+-- использованием частоты, интервала и спецификаторов.
 
 -- 1)При изменении цен на материалы пересчитывать стоимость услуг, для
 -- которых они необходимы.
+
+CREATE OR REPLACE TRIGGER update_material_cost
+AFTER UPDATE OF price ON Material
+FOR EACH ROW
+
+DECLARE
+old_material_cost NUMBER := :OLD.price;
+new_material_cost NUMBER := :NEW.price;
+current_material NUMBER := :NEW.material_id;
+old_product_price NUMBER;
+counter INTEGER;
+
+BEGIN
+SELECT product_id
+INTO counter
+FROM Product
+WHERE material_id = current_material AND ROWNUM = 1;
+
+IF old_material_cost <> new_material_cost THEN
+    SELECT price
+    INTO old_product_price
+    FROM Product
+    WHERE material_id = current_material;
+
+    UPDATE Product
+    SET price = old_product_price + (new_material_cost-old_material_cost)*0.3
+    WHERE material_id = current_material;
+
+    DBMS_OUTPUT.PUT_LINE('Material`s price and product`s price updated');
+
+END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('Product`s price hasn`t changed, because there is no products with this materials');
+
+END;
+/
+
+
+UPDATE Material SET price = 1700 WHERE material_id = 7;
+UPDATE Material SET price = 1600 WHERE material_id = 7;
+
+UPDATE Material SET price = 300 WHERE material_id = 4;
+UPDATE Material SET price = 200 WHERE material_id = 4;
+
+
+
 
 -- 2) Не заключать в месяц более определенного количества контрактов,
 -- делать скидку заказчику при повторном обращении, рассчитывать автоматически
 -- общую стоимость контракта.
 
--- 3) Вести в дополнительной таблице учет занятости оборудования по дням недели
+CREATE OR REPLACE TRIGGER orders_num
+FOR INSERT ON Orders
+COMPOUND TRIGGER
+ 
+orders_counter INTEGER;
+discount INTEGER :=10;
+max_num_of_orders INTEGER := 3;
+current_customer INTEGER := :NEW.customer_id;
+current_order INTEGER := :NEW.order_id;
+current_order_cost NUMBER := :NEW.order_cost;
+num_of_customers_orders INTEGER;
+
+BEFORE EACH ROW IS
+
+BEGIN
+SELECT COUNT(1)
+INTO orders_counter
+FROM Orders
+WHERE TO_CHAR(order_date, 'MM.YYYY') = TO_CHAR(sysdate, 'MM.YYYY');
+
+
+IF orders_counter >= max_num_of_orders THEN
+    RAISE_APPLICATION_ERROR(
+        num => -20000,
+        msg => 'You can`t have more than 3 orders in one month!');
+
+END IF;
+
+END BEFORE EACH ROW;
+
+
+AFTER STATEMENT IS
+BEGIN
+SELECT COUNT(1)
+INTO num_of_customers_orders
+FROM Orders
+WHERE customer_id = current_customer;
+
+DBMS_OUTPUT.PUT_LINE(current_customer);
+
+IF num_of_customers_orders >=1 THEN
+    UPDATE Orders
+    SET order_cost = current_order_cost*0.01*(100-discount)
+    WHERE order_id = current_order;
+END IF;
+END AFTER STATEMENT;
+
+
+
+END;
+/
+
+insert into Orders (customer_id,order_cost,order_date,status) values(2,2500,'13-december-2019','y');
+insert into Orders (customer_id,order_cost,order_date,status) values(3,2000,'14-december-2019','y');
+insert into Orders (customer_id,order_cost,order_date,status) values(1,5000,'14-december-2019','y');
+insert into Orders (customer_id,order_cost,order_date,status) values(1,4000,'14-december-2019','y');
+delete from Orders where order_id = 82;
+insert into Orders (customer_id,order_cost,order_date,status) values(4,4000,'14-december-2019','y');
+
+
+-- 3) Раз в год повышать стоимость продукта на 15%
+
+BEGIN
+DBMS_SCHEDULER.CREATE_JOB(
+JOB_NAME => 'update_product_price_once_a_year',
+JOB_TYPE => 'PLSQL_BLOCK',
+JOB_ACTION => 'UPDATE Product SET price=price+price*0.15;',
+START_DATE => '01-JAN-19 01.00.00 AM ',
+REPEAT_INTERVAL => 'FREQ=YEARLY; BYYEARDAY=1',
+END_DATE => '01-JAN-23 01.00.00 AM ',
+COMMENTS => 'Update product`s price once a year (1 jan at 1 am) ',
+ENABLED => TRUE);
+END;
+/
 
 
 
@@ -190,3 +305,25 @@ END;
 -- представлением, созданным после выполнения п. 2 задания к лабораторной
 -- работе №3, проверить DML-командами возможность обновления
 -- представления до и после включения триггера
+
+CREATE OR REPLACE VIEW num_ord AS
+SELECT c.customer_id, c.last_name, COUNT(*) AS Num_of_orders
+FROM Orders o
+INNER JOIN Customer c ON c.customer_id = o.customer_id
+GROUP BY c.customer_id,  c.last_name;
+
+
+CREATE OR REPLACE TRIGGER update_vertical_view
+INSTEAD OF UPDATE ON num_ord
+FOR EACH ROW
+BEGIN
+UPDATE Customer SET
+last_name = :NEW.last_name
+WHERE customer_id = :OLD.customer_id;
+END;
+/
+
+update num_ord set last_name='Kokoko' where customer_id=1;
+update num_ord set last_name='Kokorin' where customer_id=1;
+
+drop trigger update_vertical_view;
